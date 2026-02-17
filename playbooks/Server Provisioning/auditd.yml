@@ -1,0 +1,78 @@
+---
+- name: Install and configure auditd
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Install auditd and plugins
+      apt:
+        name:
+          - auditd
+          - audispd-plugins
+        state: present
+        update_cache: true
+
+    - name: Deploy audit rules
+      copy:
+        dest: /etc/audit/rules.d/hardening.rules
+        owner: root
+        group: root
+        mode: '0640'
+        content: |
+          # Supprimer toutes les règles existantes
+          -D
+
+          # Buffer size
+          -b 8192
+
+          # Échecs : 1 = log, 2 = panic
+          -f 1
+
+          # Surveillance des appels d'authentification
+          -w /etc/passwd         -p wa -k identity
+          -w /etc/group          -p wa -k identity
+          -w /etc/shadow         -p wa -k identity
+          -w /etc/sudoers        -p wa -k sudoers
+          -w /etc/sudoers.d/     -p wa -k sudoers
+
+          # Surveillance SSH
+          -w /etc/ssh/sshd_config -p wa -k sshd
+
+          # Connexions et sessions
+          -w /var/log/auth.log    -p wa -k auth
+          -w /var/run/utmp        -p wa -k session
+          -w /var/log/wtmp        -p wa -k session
+          -w /var/log/btmp        -p wa -k session
+
+          # Escalade de privilèges
+          -a always,exit -F arch=b64 -S setuid  -k privilege_escalation
+          -a always,exit -F arch=b64 -S setgid  -k privilege_escalation
+          -a always,exit -F arch=b64 -S execve  -F euid=0 -k root_commands
+
+          # Modifications réseau
+          -a always,exit -F arch=b64 -S sethostname -S setdomainname -k network_modifications
+          -w /etc/hosts           -p wa -k network_modifications
+          -w /etc/network/        -p wa -k network_modifications
+
+          # Cron
+          -w /etc/cron.d/        -p wa -k cron
+          -w /etc/cron.daily/    -p wa -k cron
+          -w /etc/cron.weekly/   -p wa -k cron
+          -w /etc/cron.monthly/  -p wa -k cron
+          -w /etc/crontab        -p wa -k cron
+
+          # Rendre les règles immuables (nécessite un reboot pour changer)
+          -e 2
+      notify: Restart auditd
+
+    - name: Enable and start auditd
+      systemd:
+        name: auditd
+        enabled: true
+        state: started
+
+  handlers:
+    - name: Restart auditd
+      systemd:
+        name: auditd
+        state: restarted

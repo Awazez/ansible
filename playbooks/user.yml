@@ -1,2 +1,0 @@
-sudo adduser m1398al
-sudo usermod -aG sudo m1398al

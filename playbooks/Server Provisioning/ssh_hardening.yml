@@ -1,0 +1,61 @@
+---
+- name: SSH Hardening
+  hosts: all
+  become: true
+
+  vars:
+    ssh_port: 22
+    ssh_allowed_users: "m1398al"
+
+  tasks:
+    - name: Harden sshd_config
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+        state: present
+        backup: true
+      loop:
+        - { regexp: '^#?Port ',                   line: "Port {{ ssh_port }}" }
+        - { regexp: '^#?PermitRootLogin ',         line: 'PermitRootLogin no' }
+        - { regexp: '^#?PasswordAuthentication ',  line: 'PasswordAuthentication no' }
+        - { regexp: '^#?PubkeyAuthentication ',    line: 'PubkeyAuthentication yes' }
+        - { regexp: '^#?AllowTcpForwarding ',      line: 'AllowTcpForwarding no' }
+        - { regexp: '^#?X11Forwarding ',           line: 'X11Forwarding no' }
+        - { regexp: '^#?AllowAgentForwarding ',    line: 'AllowAgentForwarding no' }
+        - { regexp: '^#?TCPKeepAlive ',            line: 'TCPKeepAlive no' }
+        - { regexp: '^#?MaxAuthTries ',            line: 'MaxAuthTries 3' }
+        - { regexp: '^#?MaxSessions ',             line: 'MaxSessions 2' }
+        - { regexp: '^#?ClientAliveCountMax ',     line: 'ClientAliveCountMax 2' }
+        - { regexp: '^#?ClientAliveInterval ',     line: 'ClientAliveInterval 300' }
+        - { regexp: '^#?LogLevel ',                line: 'LogLevel VERBOSE' }
+        - { regexp: '^#?LoginGraceTime ',          line: 'LoginGraceTime 30' }
+        - { regexp: '^#?PermitEmptyPasswords ',    line: 'PermitEmptyPasswords no' }
+        - { regexp: '^#?UseDNS ',                  line: 'UseDNS no' }
+        - { regexp: '^#?PrintLastLog ',            line: 'PrintLastLog yes' }
+      notify: Restart SSH
+
+    - name: Restrict SSH access to specific users
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?AllowUsers '
+        line: "AllowUsers {{ ssh_allowed_users }}"
+        state: present
+      notify: Restart SSH
+
+    - name: Set strict permissions on sshd_config
+      file:
+        path: /etc/ssh/sshd_config
+        owner: root
+        group: root
+        mode: '0600'
+
+    - name: Validate sshd config before restart
+      command: sshd -t
+      changed_when: false
+
+  handlers:
+    - name: Restart SSH
+      systemd:
+        name: ssh
+        state: restarted

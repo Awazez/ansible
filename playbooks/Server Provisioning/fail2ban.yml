@@ -1,0 +1,44 @@
+---
+- name: Install and configure Fail2ban
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Install fail2ban
+      apt:
+        name: fail2ban
+        state: present
+        update_cache: true
+
+    - name: Deploy jail.local configuration
+      copy:
+        dest: /etc/fail2ban/jail.local
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          [DEFAULT]
+          bantime  = 3600
+          findtime = 600
+          maxretry = 5
+          ignoreip = 127.0.0.1/8 ::1 100.64.0.0/10
+
+          [sshd]
+          enabled  = true
+          port     = ssh
+          logpath  = /var/log/auth.log
+          maxretry = 3
+          bantime  = 7200
+      notify: Restart fail2ban
+
+    - name: Enable and start fail2ban
+      systemd:
+        name: fail2ban
+        enabled: true
+        state: started
+
+  handlers:
+    - name: Restart fail2ban
+      systemd:
+        name: fail2ban
+        state: restarted

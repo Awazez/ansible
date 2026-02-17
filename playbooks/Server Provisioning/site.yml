@@ -1,0 +1,17 @@
+---
+- name: Full server provisioning
+  hosts: all
+  become: true
+
+  pre_tasks:
+    - name: Verify target OS is Debian/Ubuntu
+      assert:
+        that:
+          - ansible_os_family == "Debian"
+        fail_msg: "Ce playbook est prévu pour Debian/Ubuntu uniquement"
+
+- import_playbook: hostname.yml
+- import_playbook: updates.yml
+- import_playbook: user.yml
+- import_playbook: fail2ban.yml
+- import_playbook: ufw.yml

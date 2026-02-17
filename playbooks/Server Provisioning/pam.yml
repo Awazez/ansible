@@ -1,0 +1,77 @@
+---
+- name: PAM and login hardening
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Install PAM password strength tools and libpam-tmpdir
+      apt:
+        name:
+          - libpam-pwquality
+          - libpam-tmpdir
+          - apt-listbugs
+          - apt-listchanges
+          - debsums
+          - apt-show-versions
+        state: present
+        update_cache: true
+
+    - name: Configure pwquality (password strength)
+      copy:
+        dest: /etc/security/pwquality.conf
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          # Longueur minimale
+          minlen = 12
+          # Au moins 1 majuscule
+          ucredit = -1
+          # Au moins 1 minuscule
+          lcredit = -1
+          # Au moins 1 chiffre
+          dcredit = -1
+          # Au moins 1 caractère spécial
+          ocredit = -1
+          # Nombre de caractères différents du mot de passe précédent
+          difok = 5
+          # Rejeter les mots du dictionnaire
+          dictcheck = 1
+
+    - name: Harden /etc/login.defs
+      lineinfile:
+        path: /etc/login.defs
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+        state: present
+        backup: true
+      loop:
+        - { regexp: '^PASS_MAX_DAYS',  line: 'PASS_MAX_DAYS   90' }
+        - { regexp: '^PASS_MIN_DAYS',  line: 'PASS_MIN_DAYS   7' }
+        - { regexp: '^PASS_WARN_AGE',  line: 'PASS_WARN_AGE   14' }
+        - { regexp: '^UMASK',          line: 'UMASK           027' }
+        - { regexp: '^SHA_CRYPT_MIN_ROUNDS', line: 'SHA_CRYPT_MIN_ROUNDS 65536' }
+        - { regexp: '^SHA_CRYPT_MAX_ROUNDS', line: 'SHA_CRYPT_MAX_ROUNDS 65536' }
+
+    - name: Set umask in /etc/profile
+      lineinfile:
+        path: /etc/profile
+        regexp: '^umask'
+        line: 'umask 027'
+        state: present
+
+    - name: Set umask in /etc/bash.bashrc
+      lineinfile:
+        path: /etc/bash.bashrc
+        regexp: '^umask'
+        line: 'umask 027'
+        state: present
+
+    - name: Disable core dumps in /etc/security/limits.conf
+      lineinfile:
+        path: /etc/security/limits.conf
+        line: "{{ item }}"
+        state: present
+      loop:
+        - '* soft core 0'
+        - '* hard core 0'

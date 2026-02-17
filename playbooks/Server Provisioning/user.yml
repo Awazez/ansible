@@ -1,0 +1,27 @@
+---
+- name: Create admin user
+  hosts: all
+  become: true
+
+  vars:
+    admin_user: m1398al
+
+  tasks:
+    - name: Create user
+      user:
+        name: "{{ admin_user }}"
+        shell: /bin/bash
+        create_home: true
+        state: present
+
+    - name: Add user to sudo group
+      user:
+        name: "{{ admin_user }}"
+        groups: sudo
+        append: true
+
+    - name: Deploy SSH public key
+      authorized_key:
+        user: "{{ admin_user }}"
+        state: present
+        key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
