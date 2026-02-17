@@ -1,0 +1,17 @@
+---
+- name: Configuration du hostname
+  hosts: all
+  become: yes
+  tasks:
+    - name: Définir le hostname du serveur
+      hostname:
+        name: "{{ inventory_hostname }}"
+      
+    - name: Mettre à jour /etc/hosts
+      lineinfile:
+        path: /etc/hosts
+        regexp: '^127\.0\.1\.1'
+        line: "127.0.1.1 {{ inventory_hostname }}"
+        state: present
+
+

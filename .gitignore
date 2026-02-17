@@ -1,0 +1,2 @@
+# Ignore the inventory file and the user playbook as they are recently edited and may contain important changes that should not be overlooked.
+inventory.ini
