@@ -1,0 +1,55 @@
+---
+- name: Configure legal login banners
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Set /etc/issue and /etc/issue.net banner (Almerson)
+      copy:
+        dest: "{{ item }}"
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          ###############################################################################
+          #                                                                             #
+          #    ░█████╗░██╗░░░░░███╗░░░███╗███████╗██████╗░░██████╗░░█████╗░███╗░░██╗    #
+          #    ██╔══██╗██║░░░░░████╗░████║██╔════╝██╔══██╗██╔════╝░██╔══██╗████╗░██║    #
+          #    ███████║██║░░░░░██╔████╔██║█████╗░░██████╔╝╚█████╗░░██║░░██║██╔██╗██║    #
+          #    ██╔══██║██║░░░░░██║╚██╔╝██║██╔══╝░░██╔══██╗░╚═══██╗░██║░░██║██║╚████║    #
+          #    ██║░░██║███████╗██║░╚═╝░██║███████╗██║░░██║██████╔╝░╚█████╔╝██║░╚███║    #
+          #    ╚═╝░░╚═╝╚══════╝╚═╝░░░░╚═╝╚══════╝╚═╝░░╚═╝╚═════╝░░░╚════╝░╚═╝░░╚══╝     #
+          #                                                                             #
+          #                   S E C U R E   I N F R A S T R U C T U R E                 #
+          #                                                                             #
+          ###############################################################################
+          #                                                                             #
+          #   AUTHORIZED ACCESS ONLY                                                    #
+          #                                                                             #
+          #   Unauthorized access to this system is strictly prohibited and subject     #
+          #   to criminal prosecution under applicable law.                             #
+          #                                                                             #
+          #   All connections, commands and activity are monitored and logged.          #
+          #   There is no expectation of privacy on this system.                        #
+          #                                                                             #
+          #   By continuing, you consent to monitoring and agree to Almerson's          #
+          #   security policies.                                                        #
+          #                                                                             #
+          ###############################################################################
+      loop:
+        - /etc/issue
+        - /etc/issue.net
+
+    - name: Enable banner in sshd_config
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?Banner '
+        line: 'Banner /etc/issue.net'
+        state: present
+      notify: Restart SSH
+
+  handlers:
+    - name: Restart SSH
+      systemd:
+        name: ssh
+        state: restarted

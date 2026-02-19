@@ -1,0 +1,17 @@
+---
+- name: Enable process accounting
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Install acct (process accounting)
+      apt:
+        name: acct
+        state: present
+        update_cache: true
+
+    - name: Enable and start acct service
+      systemd:
+        name: acct
+        enabled: true
+        state: started

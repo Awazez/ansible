@@ -19,3 +19,9 @@
 - import_playbook: auditd.yml
 - import_playbook: pam_hardening.yml
 - import_playbook: anti-malware.yml
+- import_playbook: banner.yml
+- import_playbook: pkg_integrity.yml
+- import_playbook: process_accounting.yml
+- import_playbook: aide.yml
+# Décommenter uniquement après vérification des modules chargés :
+# - import_playbook: kernel_modules_lock.yml

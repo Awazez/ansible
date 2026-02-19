@@ -1,0 +1,49 @@
+---
+- name: Install and configure AIDE (file integrity)
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Install AIDE
+      apt:
+        name: aide
+        state: present
+        update_cache: true
+
+    - name: Initialize AIDE database (first run, may take a few minutes)
+      command: aideinit -y -f
+      args:
+        creates: /var/lib/aide/aide.db
+      register: aide_init
+
+    - name: Copy new database to active database
+      copy:
+        src: /var/lib/aide/aide.db.new
+        dest: /var/lib/aide/aide.db
+        remote_src: true
+      when: aide_init.changed
+
+    - name: Deploy AIDE cron job (weekly check)
+      copy:
+        dest: /etc/cron.weekly/aide-check
+        owner: root
+        group: root
+        mode: '0750'
+        content: |
+          #!/bin/bash
+          /usr/bin/aide --check 2>&1 | logger -t aide
+          if [ $? -ne 0 ]; then
+            echo "AIDE detected changes on $(hostname)" | \
+              mail -s "[SECURITY] AIDE alert on $(hostname)" root
+          fi
+
+    - name: Deploy AIDE cron job (monthly database update)
+      copy:
+        dest: /etc/cron.monthly/aide-update
+        owner: root
+        group: root
+        mode: '0750'
+        content: |
+          #!/bin/bash
+          /usr/bin/aide --update 2>&1 | logger -t aide
+          cp /var/lib/aide/aide.db.new /var/lib/aide/aide.db

@@ -1,0 +1,22 @@
+---
+- name: Package integrity and audit tools
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Install apt-listchanges and debsums
+      apt:
+        name:
+          - apt-listchanges
+          - debsums
+        state: present
+        update_cache: true
+
+    - name: Deploy debsums weekly cron job
+      copy:
+        dest: /etc/cron.d/debsums
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          0 3 * * 0 root debsums -s 2>&1 | logger -t debsums
