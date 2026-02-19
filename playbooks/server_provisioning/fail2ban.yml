@@ -1,4 +1,13 @@
 ---
+# =============================================================================
+#  Author : Martin AUBEUT
+#  Ansible Playbook — Installation et configuration Fail2ban (prévention attaques)
+#  Usage : ansible-playbook -i inventory.ini fail2ban.yml
+#  Version : 1.0 (2025-19-02)
+#  Modification :
+#  - 2025-19-02 - Initial version
+# =============================================================================
+
 - name: Install and configure Fail2ban
   hosts: all
   become: true

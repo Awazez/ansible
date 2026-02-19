@@ -1,7 +1,11 @@
 ---
 # =============================================================================
-#  Almerson - Server Provisioning : Raspberry Pi (ARM / Raspberry Pi OS)
-# =============================================================================
+#  Author : Martin AUBEUT
+#  Ansible Playbook — Provisionnement complet serveur Raspberry Pi (ARM)
+#  Usage : ansible-playbook -i inventory.ini site_rpi.yml
+#  Version : 1.0 (2025-19-02)
+#  Modification :
+#  - 2025-19-02 - Initial version
 #  Différences vs site.yml standard :
 #   - ClamAV retiré        → trop lourd pour RPi (RAM/CPU)
 #   - AIDE allégé          → aideinit peut être long sur carte SD

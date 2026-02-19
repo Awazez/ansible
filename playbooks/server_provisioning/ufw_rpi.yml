@@ -1,4 +1,13 @@
 ---
+# =============================================================================
+#  Author : Martin AUBEUT
+#  Ansible Playbook — Installation et configuration UFW (Raspberry Pi / ARM)
+#  Usage : ansible-playbook -i inventory.ini ufw_rpi.yml
+#  Version : 1.0 (2025-19-02)
+#  Modification :
+#  - 2025-19-02 - Initial version
+# =============================================================================
+
 - name: Install and configure UFW (Raspberry Pi)
   hosts: all
   become: true

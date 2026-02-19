@@ -1,4 +1,13 @@
 ---
+# =============================================================================
+#  Author : Martin AUBEUT
+#  Ansible Playbook — Installation et configuration UFW (standard x86)
+#  Usage : ansible-playbook -i inventory.ini ufw.yml
+#  Version : 1.0 (2025-19-02)
+#  Modification :
+#  - 2025-19-02 - Initial version
+# =============================================================================
+
 - name: Install and configure UFW
   hosts: all
   become: true

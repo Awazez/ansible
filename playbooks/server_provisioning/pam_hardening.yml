@@ -1,4 +1,13 @@
 ---
+# =============================================================================
+#  Author : Martin AUBEUT
+#  Ansible Playbook — Renforcement PAM et authentification
+#  Usage : ansible-playbook -i inventory.ini pam_hardening.yml
+#  Version : 1.0 (2025-19-02)
+#  Modification :
+#  - 2025-19-02 - Initial version
+# =============================================================================
+
 - name: PAM and login hardening
   hosts: all
   become: true

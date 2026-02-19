@@ -1,4 +1,13 @@
 ---
+# =============================================================================
+#  Author : Martin AUBEUT
+#  Ansible Playbook — Renforcement Sysctl Kernel (standard x86)
+#  Usage : ansible-playbook -i inventory.ini sysctl_hardening.yml
+#  Version : 1.0 (2025-19-02)
+#  Modification :
+#  - 2025-19-02 - Initial version
+# =============================================================================
+
 - name: Sysctl Kernel Hardening
   hosts: all
   become: true

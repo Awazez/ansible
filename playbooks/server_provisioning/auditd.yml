@@ -1,4 +1,13 @@
 ---
+# =============================================================================
+#  Author : Martin AUBEUT
+#  Ansible Playbook — Installation et configuration auditd (audit système)
+#  Usage : ansible-playbook -i inventory.ini auditd.yml
+#  Version : 1.0 (2025-19-02)
+#  Modification :
+#  - 2025-19-02 - Initial version
+# =============================================================================
+
 - name: Install and configure auditd
   hosts: all
   become: true

@@ -1,4 +1,13 @@
 ---
+# =============================================================================
+#  Author : Martin AUBEUT
+#  Ansible Playbook — Renforcement kernel et blocage des modules (Lynis)
+#  Usage : ansible-playbook -i inventory.ini kernel_module_lock.yml
+#  Version : 1.0 (2025-19-02)
+#  Modification :
+#  - 2025-19-02 - Initial version
+# =============================================================================
+
 - name: Kernel hardening - Apply Lynis recommendations
   hosts: all
   become: true

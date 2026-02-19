@@ -1,3 +1,13 @@
+---
+# =============================================================================
+#  Author : Martin AUBEUT
+#  Ansible Playbook — Renforcement des bandeaux Postfix
+#  Usage : ansible-playbook -i inventory.ini postfix_banner.yml
+#  Version : 1.0 (2025-19-02)
+#  Modification :
+#  - 2025-19-02 - Initial version
+# =============================================================================
+
 - name: Harden Postfix banner
   hosts: all
   become: true

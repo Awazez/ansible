@@ -1,4 +1,13 @@
 ---
+# =============================================================================
+#  Author : Martin AUBEUT
+#  Ansible Playbook — Renforcement des services Systemd
+#  Usage : ansible-playbook -i inventory.ini systemd_hardening.yml
+#  Version : 1.0 (2025-19-02)
+#  Modification :
+#  - 2025-19-02 - Initial version
+# =============================================================================
+
 - name: Systemd services hardening
   hosts: all
   become: true

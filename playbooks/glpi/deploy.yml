@@ -1,0 +1,273 @@
+---
+# =============================================================================
+#  Author : Martin AUBEUT
+#  Ansible Playbook — Déploiement GLPI 10.0.21
+#  Usage : ansible-playbook -i inventory.ini deploy_glpi.yml
+#  Verson : 1.0 (2025-19-02)
+#  Modification : 
+#  - 2025-19-02 - Initial version 
+# =============================================================================
+
+- name: Déploiement GLPI 10.0.21
+  hosts: glpi_servers
+  become: true
+
+  vars_files:
+    - vars/glpi.yml
+
+  # ── Vérification pré-déploiement ──────────────────────────────────────────
+  pre_tasks:
+    - name: Vérifier que la distribution est Ubuntu
+      ansible.builtin.assert:
+        that: ansible_distribution == "Ubuntu"
+        fail_msg: "Ce playbook est prévu pour Ubuntu uniquement."
+
+    - name: Mise à jour du cache APT
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+  # ══════════════════════════════════════════════════════════════════════════
+  tasks:
+
+    # ── 1. Dépendances système ──────────────────────────────────────────────
+    - name: Installer les paquets de base
+      ansible.builtin.apt:
+        name:
+          - curl
+          - wget
+          - unzip
+          - tar
+          - cron
+          - software-properties-common
+          - python3-pymysql        # requis par le module mysql_db d'Ansible
+        state: present
+
+    - name: Ajouter le PPA Ondrej PHP (si PHP 8.2 absent)
+      ansible.builtin.apt_repository:
+        repo: ppa:ondrej/php
+        state: present
+        update_cache: true
+      when: ansible_distribution_version is version('24.04', '<')
+
+    # ── 2. Nginx ────────────────────────────────────────────────────────────
+    - name: Installer Nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+
+    - name: Démarrer et activer Nginx
+      ansible.builtin.systemd:
+        name: nginx
+        state: started
+        enabled: true
+
+    # ── 3. MariaDB ──────────────────────────────────────────────────────────
+    - name: Installer MariaDB
+      ansible.builtin.apt:
+        name:
+          - mariadb-server
+          - mariadb-client
+        state: present
+
+    - name: Démarrer et activer MariaDB
+      ansible.builtin.systemd:
+        name: mariadb
+        state: started
+        enabled: true
+
+    - name: Créer la base de données GLPI
+      community.mysql.mysql_db:
+        name: "{{ glpi_db_name }}"
+        encoding: utf8mb4
+        collation: utf8mb4_unicode_ci
+        state: present
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+
+    - name: Créer l'utilisateur MariaDB GLPI
+      community.mysql.mysql_user:
+        name: "{{ glpi_db_user }}"
+        password: "{{ glpi_db_password }}"
+        priv: "{{ glpi_db_name }}.*:ALL"
+        host: "{{ glpi_db_host }}"
+        state: present
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+
+    # ── 4. PHP-FPM ──────────────────────────────────────────────────────────
+    - name: Installer PHP {{ php_version }} et ses extensions
+      ansible.builtin.apt:
+        name:
+          - "php{{ php_version }}-fpm"
+          - "php{{ php_version }}-cli"
+          - "php{{ php_version }}-mysql"
+          - "php{{ php_version }}-xml"
+          - "php{{ php_version }}-intl"
+          - "php{{ php_version }}-curl"
+          - "php{{ php_version }}-gd"
+          - "php{{ php_version }}-mbstring"
+          - "php{{ php_version }}-zip"
+          - "php{{ php_version }}-bz2"
+          - "php{{ php_version }}-ldap"
+          - "php{{ php_version }}-opcache"
+          - "php{{ php_version }}-apcu"
+          - "php{{ php_version }}-imap"
+          - "php{{ php_version }}-exif"
+        state: present
+
+    - name: Déployer la configuration PHP pour GLPI
+      ansible.builtin.template:
+        src: templates/php-glpi.ini.j2
+        dest: "/etc/php/{{ php_version }}/fpm/conf.d/99-glpi.ini"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Redémarrer PHP-FPM
+
+    - name: Démarrer et activer PHP-FPM
+      ansible.builtin.systemd:
+        name: "php{{ php_version }}-fpm"
+        state: started
+        enabled: true
+
+    # ── 5. Répertoires GLPI hors webroot ────────────────────────────────────
+    - name: Créer le webroot GLPI
+      ansible.builtin.file:
+        path: "{{ glpi_webroot }}"
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: "0755"
+
+    - name: Créer les répertoires de données hors webroot
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: "0750"
+      loop:
+        - "{{ glpi_data_dir }}"
+        - "{{ glpi_data_dir }}/files"
+        - "{{ glpi_data_dir }}/_dumps"
+        - "{{ glpi_data_dir }}/_pictures"
+        - "{{ glpi_data_dir }}/_plugins"
+        - "{{ glpi_data_dir }}/_tmp"
+        - "{{ glpi_data_dir }}/_uploads"
+        - "{{ glpi_data_dir }}/_sessions"
+        - "{{ glpi_data_dir }}/_cache"
+        - "{{ glpi_log_dir }}"
+
+    # ── 6. Téléchargement et extraction de GLPI ─────────────────────────────
+    - name: Télécharger l'archive GLPI {{ glpi_version }}
+      ansible.builtin.get_url:
+        url: "https://github.com/glpi-project/glpi/releases/download/{{ glpi_version }}/glpi-{{ glpi_version }}.tgz"
+        dest: "/tmp/glpi-{{ glpi_version }}.tgz"
+        mode: "0644"
+        checksum: "{{ glpi_checksum | default(omit) }}"
+
+    - name: Extraire l'archive GLPI
+      ansible.builtin.unarchive:
+        src: "/tmp/glpi-{{ glpi_version }}.tgz"
+        dest: /tmp/
+        remote_src: true
+        creates: /tmp/glpi/index.php
+
+    - name: Copier GLPI vers le webroot
+      ansible.builtin.copy:
+        src: /tmp/glpi/
+        dest: "{{ glpi_webroot }}/"
+        remote_src: true
+        owner: www-data
+        group: www-data
+
+    - name: Déployer downstream.php (redirection données hors webroot)
+      ansible.builtin.template:
+        src: templates/downstream.php.j2
+        dest: "{{ glpi_webroot }}/inc/downstream.php"
+        owner: www-data
+        group: www-data
+        mode: "0644"
+
+    - name: Corriger les permissions du webroot
+      ansible.builtin.file:
+        path: "{{ glpi_webroot }}"
+        owner: www-data
+        group: www-data
+        recurse: true
+
+    - name: Nettoyer l'archive temporaire
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "/tmp/glpi-{{ glpi_version }}.tgz"
+        - /tmp/glpi
+
+    # ── 7. Vhost Nginx ──────────────────────────────────────────────────────
+    - name: Désactiver le vhost Nginx par défaut
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: Recharger Nginx
+
+    - name: Déployer le vhost Nginx GLPI
+      ansible.builtin.template:
+        src: templates/nginx-glpi.conf.j2
+        dest: /etc/nginx/sites-available/glpi.conf
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Recharger Nginx
+
+    - name: Activer le vhost GLPI
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/glpi.conf
+        dest: /etc/nginx/sites-enabled/glpi.conf
+        state: link
+      notify: Recharger Nginx
+
+    - name: Tester la configuration Nginx
+      ansible.builtin.command: nginx -t
+      changed_when: false
+
+    # ── 8. Cron GLPI ────────────────────────────────────────────────────────
+    - name: Configurer la tâche cron GLPI
+      ansible.builtin.cron:
+        name: "GLPI automated tasks"
+        user: www-data
+        minute: "*"
+        job: "/usr/bin/php{{ php_version }} {{ glpi_webroot }}/front/cron.php --force > /dev/null 2>&1"
+        cron_file: glpi
+
+  # ── Handlers ───────────────────────────────────────────────────────────────
+  handlers:
+    - name: Redémarrer PHP-FPM
+      ansible.builtin.systemd:
+        name: "php{{ php_version }}-fpm"
+        state: restarted
+
+    - name: Recharger Nginx
+      ansible.builtin.systemd:
+        name: nginx
+        state: reloaded
+
+  # ── Résumé post-déploiement ───────────────────────────────────────────────
+  post_tasks:
+    - name: Résumé du déploiement
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "  GLPI {{ glpi_version }} déployé avec succès !"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "  URL installation : http://{{ glpi_fqdn }}/install/install.php"
+          - "  DB Host          : {{ glpi_db_host }}"
+          - "  DB Name          : {{ glpi_db_name }}"
+          - "  DB User          : {{ glpi_db_user }}"
+          - "  Webroot          : {{ glpi_webroot }}"
+          - "  Données          : {{ glpi_data_dir }}"
+          - "  Logs             : {{ glpi_log_dir }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "  Après l'assistant web :"
+          - "  → Supprimer : rm -rf {{ glpi_webroot }}/install"
+          - "  → HTTPS     : certbot --nginx -d {{ glpi_fqdn }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

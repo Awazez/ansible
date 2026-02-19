@@ -1,4 +1,13 @@
 ---
+# =============================================================================
+#  Author : Martin AUBEUT
+#  Ansible Playbook — Activation de la comptabilité processus (process accounting)
+#  Usage : ansible-playbook -i inventory.ini process_accounting.yml
+#  Version : 1.0 (2025-19-02)
+#  Modification :
+#  - 2025-19-02 - Initial version
+# =============================================================================
+
 - name: Enable process accounting
   hosts: all
   become: true
