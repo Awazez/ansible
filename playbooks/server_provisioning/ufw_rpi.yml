@@ -1,0 +1,52 @@
+---
+- name: Install and configure UFW (Raspberry Pi)
+  hosts: all
+  become: true
+
+  vars:
+    ufw_allowed_ports:
+      - { port: 22,   proto: tcp, comment: "SSH" }
+      - { port: 80,   proto: tcp, comment: "HTTP" }
+      - { port: 443,  proto: tcp, comment: "HTTPS" }
+      - { port: 3000, proto: tcp, comment: "Gitea" }
+
+    ufw_trusted_networks:
+      - { src: "100.64.0.0/10", comment: "Netbird VPN" }
+      - { src: "127.0.0.1/8",   comment: "Loopback" }
+      - { src: "::1",           comment: "Loopback IPv6" }
+
+  tasks:
+    - name: Install ufw
+      apt:
+        name: ufw
+        state: present
+        update_cache: true
+
+    - name: Set default policy - deny incoming
+      ufw:
+        direction: incoming
+        policy: deny
+
+    - name: Set default policy - allow outgoing
+      ufw:
+        direction: outgoing
+        policy: allow
+
+    - name: Allow defined ports
+      ufw:
+        rule: allow
+        port: "{{ item.port }}"
+        proto: "{{ item.proto }}"
+        comment: "{{ item.comment }}"
+      loop: "{{ ufw_allowed_ports }}"
+
+    - name: Allow trusted networks (full access)
+      ufw:
+        rule: allow
+        src: "{{ item.src }}"
+        comment: "{{ item.comment }}"
+      loop: "{{ ufw_trusted_networks }}"
+
+    - name: Enable UFW and enable on boot
+      ufw:
+        state: enabled

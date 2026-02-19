@@ -1,0 +1,119 @@
+---
+- name: Kernel hardening - Apply Lynis recommendations
+  hosts: all
+  become: true
+  vars:
+    required_modules:
+      - ip_tables
+      - nf_conntrack
+      # overlay, br_netfilter, iptable_filter, iptable_nat
+      # non charges sur alm-01 (pas de Docker/k8s)
+      # VMware ESXi guests
+      # - vmw_vmci
+      # - vmxnet3
+      # - vmw_balloon
+    sysctl_hardening:
+      # --- Lynis DIFFERENT ---
+      - name: fs.suid_dumpable
+        value: '0'
+        comment: "Interdit les core dumps des binaires SUID"
+      - name: net.ipv4.conf.all.log_martians
+        value: '1'
+        comment: "Log les paquets avec adresses sources impossibles"
+      - name: net.ipv4.conf.default.log_martians
+        value: '1'
+        comment: "Log les paquets martiens (interface default)"
+      - name: net.ipv4.conf.all.rp_filter
+        value: '1'
+        comment: "Reverse Path Filtering strict - anti-spoofing IP"
+  tasks:
+    # -------------------------------------------------------
+    # BLOC 1 : Parametres sysctl standards (reversibles)
+    # -------------------------------------------------------
+    - name: Apply sysctl hardening parameters
+      sysctl:
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+        state: present
+        reload: true
+        sysctl_file: /etc/sysctl.d/99-hardening.conf
+      loop: "{{ sysctl_hardening }}"
+      loop_control:
+        label: "{{ item.name }} = {{ item.value }}"
+
+    - name: Verify applied sysctl values
+      command: sysctl {{ item.name }}
+      register: sysctl_verify
+      changed_when: false
+      loop: "{{ sysctl_hardening }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Display verification results
+      debug:
+        msg: "{{ item.stdout }}"
+      loop: "{{ sysctl_verify.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+
+    # -------------------------------------------------------
+    # BLOC 2 : kernel.modules_disabled (IRREVERSIBLE)
+    # -------------------------------------------------------
+    - name: Gather loaded modules
+      command: lsmod
+      register: loaded_modules
+      changed_when: false
+
+    - name: Display loaded module count
+      debug:
+        msg: "Modules actuellement charges : {{ loaded_modules.stdout_lines | length - 1 }}"
+
+    - name: Check required modules are loaded
+      shell: lsmod | grep -qw "{{ item }}"
+      loop: "{{ required_modules }}"
+      register: module_checks
+      ignore_errors: true
+      changed_when: false
+
+    - name: Fail if a required module is missing
+      fail:
+        msg: >
+          Module requis manquant : '{{ item.item }}'.
+          Lance 'modprobe {{ item.item }}' et assure-toi
+          qu'il est dans /etc/modules-load.d/ avant de relancer.
+      when: item.rc != 0
+      loop: "{{ module_checks.results }}"
+
+    - name: Persist required modules across reboots
+      copy:
+        dest: /etc/modules-load.d/hardening-required.conf
+        content: |
+          # Modules requis avant verrouillage kernel (hardening)
+          {% for mod in required_modules %}
+          {{ mod }}
+          {% endfor %}
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Disable kernel module loading (irreversible sans reboot)
+      sysctl:
+        name: kernel.modules_disabled
+        value: '1'
+        state: present
+        reload: true
+        sysctl_file: /etc/sysctl.d/99-hardening.conf
+
+    - name: Verify kernel.modules_disabled
+      command: sysctl kernel.modules_disabled
+      register: modules_disabled_verify
+      changed_when: false
+
+    - name: Confirm full hardening status
+      debug:
+        msg:
+          - "fs.suid_dumpable        : applique"
+          - "log_martians (all)      : applique"
+          - "log_martians (default)  : applique"
+          - "rp_filter               : applique"
+          - "kernel.modules_disabled : {{ modules_disabled_verify.stdout }}"

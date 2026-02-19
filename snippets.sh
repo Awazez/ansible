@@ -1,11 +1,9 @@
-
-
-
-
 ansible-playbook -i inventory.ini playbooks/updates.yml
 
 
 ansible-playbook -i hosts.ini hostname.yml --limit alm-01
+
+ssh-keygen -R 57.128.191.150
 
 
 cd ~/ansible

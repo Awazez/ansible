@@ -1,0 +1,173 @@
+---
+- name: Systemd services hardening
+  hosts: all
+  become: true
+
+  vars:
+    services_to_disable:
+      - snapd.service
+      - ModemManager.service
+      - thermald.service
+      - udisks2.service
+      - upower.service
+
+    service_overrides:
+      - service: ssh
+        settings: |
+          [Service]
+          PrivateTmp=yes
+          ProtectSystem=strict
+          ProtectHome=yes
+          NoNewPrivileges=yes
+          ProtectKernelTunables=yes
+          ProtectKernelModules=yes
+          ProtectControlGroups=yes
+          RestrictSUIDSGID=yes
+
+      - service: cron
+        settings: |
+          [Service]
+          PrivateTmp=yes
+          ProtectSystem=strict
+          NoNewPrivileges=yes
+          ProtectKernelTunables=yes
+          ProtectKernelModules=yes
+          RestrictSUIDSGID=yes
+
+      - service: rsyslog
+        settings: |
+          [Service]
+          PrivateTmp=yes
+          ProtectSystem=strict
+          ProtectHome=read-only
+          NoNewPrivileges=yes
+          ProtectKernelTunables=yes
+          RestrictSUIDSGID=yes
+
+      - service: fail2ban
+        settings: |
+          [Service]
+          PrivateTmp=yes
+          ProtectSystem=strict
+          ProtectHome=read-only
+          NoNewPrivileges=yes
+          ProtectKernelTunables=yes
+          ProtectKernelModules=yes
+          RestrictSUIDSGID=yes
+
+      - service: unattended-upgrades
+        settings: |
+          [Service]
+          PrivateTmp=yes
+          ProtectSystem=strict
+          ProtectHome=read-only
+          NoNewPrivileges=yes
+          ProtectKernelTunables=yes
+          ProtectKernelModules=yes
+          RestrictSUIDSGID=yes
+
+      - service: networkd-dispatcher
+        settings: |
+          [Service]
+          PrivateTmp=yes
+          ProtectSystem=strict
+          ProtectHome=yes
+          NoNewPrivileges=yes
+          ProtectKernelTunables=yes
+          ProtectKernelModules=yes
+          RestrictSUIDSGID=yes
+
+  tasks:
+    # -------------------------------------------------------
+    # BLOC 1 : Desactivation des services inutiles
+    # -------------------------------------------------------
+    - name: Check if service exists before disabling
+      command: systemctl list-unit-files {{ item }}
+      register: service_exists
+      changed_when: false
+      ignore_errors: true
+      loop: "{{ services_to_disable }}"
+
+    - name: Disable and stop unnecessary services
+      service:
+        name: "{{ item.item }}"
+        state: stopped
+        enabled: false
+      when: "'enabled' in item.stdout or 'disabled' in item.stdout"
+      loop: "{{ service_exists.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    # -------------------------------------------------------
+    # BLOC 2 : Hardening via overrides systemd
+    # -------------------------------------------------------
+    - name: Create override directory for each service
+      file:
+        path: /etc/systemd/system/{{ item.service }}.service.d
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+      loop: "{{ service_overrides }}"
+      loop_control:
+        label: "{{ item.service }}"
+
+    - name: Apply hardening override for each service
+      copy:
+        dest: /etc/systemd/system/{{ item.service }}.service.d/hardening.conf
+        content: "{{ item.settings }}"
+        owner: root
+        group: root
+        mode: '0644'
+      loop: "{{ service_overrides }}"
+      loop_control:
+        label: "{{ item.service }}"
+
+    # -------------------------------------------------------
+    # BLOC 3 : Reload et restart
+    # -------------------------------------------------------
+    - name: Reload systemd daemon
+      command: systemctl daemon-reload
+      changed_when: false
+
+    - name: Restart hardened services (except ssh)
+      service:
+        name: "{{ item.service }}"
+        state: restarted
+      loop: "{{ service_overrides }}"
+      loop_control:
+        label: "{{ item.service }}"
+      when: item.service != 'ssh'
+      ignore_errors: true
+
+    - name: Restart ssh service (async pour eviter la coupure de connexion)
+      shell: sleep 2 && systemctl restart ssh
+      async: 10
+      poll: 0
+
+    - name: Wait for ssh to come back up
+      wait_for:
+        host: "{{ ansible_host }}"
+        port: 22
+        delay: 3
+        timeout: 30
+      delegate_to: localhost
+
+    # -------------------------------------------------------
+    # BLOC 4 : Verification
+    # -------------------------------------------------------
+    - name: Verify exposure score for each hardened service
+      command: systemd-analyze security {{ item.service }}.service --no-pager
+      register: security_scores
+      changed_when: false
+      ignore_errors: true
+      loop: "{{ service_overrides }}"
+      loop_control:
+        label: "{{ item.service }}"
+
+    - name: Display exposure scores
+      debug:
+        msg: "{{ item.stdout_lines | last }}"
+      loop: "{{ security_scores.results }}"
+      loop_control:
+        label: "{{ item.item.service }}"

@@ -1,0 +1,64 @@
+---
+- name: Sysctl Kernel Hardening (Raspberry Pi / ARM)
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Apply kernel hardening parameters (ARM-compatible only)
+      sysctl:
+        name: "{{ item.key }}"
+        value: "{{ item.value }}"
+        state: present
+        reload: true
+        sysctl_file: /etc/sysctl.d/99-hardening.conf
+      loop:
+        # Filesystem protections
+        - { key: 'fs.protected_fifos',                          value: '2' }
+        - { key: 'fs.suid_dumpable',                            value: '0' }
+
+        # Kernel protections
+        - { key: 'kernel.kptr_restrict',                        value: '2' }
+        - { key: 'kernel.sysrq',                                value: '0' }
+        - { key: 'kernel.core_uses_pid',                        value: '1' }
+        - { key: 'kernel.dmesg_restrict',                       value: '1' }
+        - { key: 'kernel.randomize_va_space',                   value: '2' }
+        # NOTE: kernel.unprivileged_bpf_disabled et dev.tty.ldisc_autoload
+        # ne sont pas disponibles sur le kernel ARM Raspberry Pi OS — retirés.
+
+        # IPv4 - Anti-spoofing & martians
+        - { key: 'net.ipv4.conf.all.log_martians',              value: '1' }
+        - { key: 'net.ipv4.conf.default.log_martians',          value: '1' }
+        - { key: 'net.ipv4.conf.all.rp_filter',                 value: '1' }
+        - { key: 'net.ipv4.conf.default.rp_filter',             value: '1' }
+
+        # IPv4 - Redirects
+        - { key: 'net.ipv4.conf.all.accept_redirects',          value: '0' }
+        - { key: 'net.ipv4.conf.default.accept_redirects',      value: '0' }
+        - { key: 'net.ipv4.conf.all.send_redirects',            value: '0' }
+        - { key: 'net.ipv4.conf.all.accept_source_route',       value: '0' }
+        - { key: 'net.ipv4.conf.default.accept_source_route',   value: '0' }
+
+        # IPv4 - SYN flood protection
+        - { key: 'net.ipv4.tcp_syncookies',                     value: '1' }
+        - { key: 'net.ipv4.icmp_echo_ignore_broadcasts',        value: '1' }
+        - { key: 'net.ipv4.icmp_ignore_bogus_error_responses',  value: '1' }
+
+        # IPv4 - Disable forwarding (pas un routeur)
+        - { key: 'net.ipv4.conf.all.forwarding',                value: '0' }
+
+        # IPv6 - Redirects
+        - { key: 'net.ipv6.conf.all.accept_redirects',          value: '0' }
+        - { key: 'net.ipv6.conf.default.accept_redirects',      value: '0' }
+        - { key: 'net.ipv6.conf.all.accept_source_route',       value: '0' }
+
+    - name: Disable unused network protocols (dccp, sctp, rds, tipc)
+      copy:
+        dest: /etc/modprobe.d/disable-protocols.conf
+        content: |
+          install dccp /bin/true
+          install sctp /bin/true
+          install rds  /bin/true
+          install tipc /bin/true
+        owner: root
+        group: root
+        mode: '0644'

@@ -1,0 +1,46 @@
+---
+# =============================================================================
+#  Almerson - Server Provisioning : Raspberry Pi (ARM / Raspberry Pi OS)
+# =============================================================================
+#  Différences vs site.yml standard :
+#   - ClamAV retiré        → trop lourd pour RPi (RAM/CPU)
+#   - AIDE allégé          → aideinit peut être long sur carte SD
+#   - sysctl_hardening_rpi → paramètres ARM-only (sans bpf_disabled etc.)
+#   - ufw_rpi              → port 3000 (Gitea) ajouté
+#   - postfix_banner retiré → Postfix non installé par défaut sur RPi OS
+#   - Banner conservé      → légal + dissuasif
+# =============================================================================
+
+- name: Full server provisioning - Raspberry Pi
+  hosts: all
+  become: true
+
+  pre_tasks:
+    - name: Verify target OS is Debian/Ubuntu
+      assert:
+        that:
+          - ansible_os_family == "Debian"
+        fail_msg: "Ce playbook est prévu pour Raspberry Pi OS (Debian) uniquement"
+
+    - name: Warn if not ARM architecture
+      debug:
+        msg: "⚠️  Architecture détectée : {{ ansible_architecture }} — ce playbook est optimisé pour ARM (aarch64/armv7l)"
+      when: ansible_architecture not in ['aarch64', 'armv7l', 'armv6l']
+
+- import_playbook: hostname.yml
+- import_playbook: user.yml
+- import_playbook: ufw_rpi.yml
+- import_playbook: ssh_hardening.yml
+- import_playbook: fail2ban.yml
+- import_playbook: sysctl_hardening_rpi.yml
+- import_playbook: auditd.yml
+- import_playbook: pam_hardening.yml
+- import_playbook: banner.yml
+- import_playbook: pkg_integrity.yml
+- import_playbook: process_accounting.yml
+- import_playbook: aide.yml
+
+# Retirés pour RPi :
+# - import_playbook: anti-malware.yml      → ClamAV trop lourd
+# - import_playbook: postfix_banner.yml    → Postfix absent sur RPi OS
+# - import_playbook: kernel_modules_lock.yml → à valider manuellement

@@ -1,0 +1,24 @@
+- name: Harden Postfix banner
+  hosts: all
+  become: true
+  tasks:
+    - name: Remove version and OS info from Postfix banner
+      lineinfile:
+        path: /etc/postfix/main.cf
+        regexp: '^smtpd_banner'
+        line: 'smtpd_banner = $myhostname ESMTP'
+        state: present
+
+    - name: Reload Postfix
+      service:
+        name: postfix
+        state: reloaded
+
+    - name: Verify banner
+      command: postconf smtpd_banner
+      register: banner_verify
+      changed_when: false
+
+    - name: Display banner value
+      debug:
+        msg: "{{ banner_verify.stdout }}"
