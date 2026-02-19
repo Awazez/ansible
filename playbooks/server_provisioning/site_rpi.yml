@@ -27,19 +27,7 @@
         msg: "⚠️  Architecture détectée : {{ ansible_architecture }} — ce playbook est optimisé pour ARM (aarch64/armv7l)"
       when: ansible_architecture not in ['aarch64', 'armv7l', 'armv6l']
 
-- import_playbook: hostname.yml
-- import_playbook: user.yml
-- import_playbook: ufw_rpi.yml
-- import_playbook: ssh_hardening.yml
-- import_playbook: fail2ban.yml
-- import_playbook: sysctl_hardening_rpi.yml
-- import_playbook: auditd.yml
-- import_playbook: pam_hardening.yml
 - import_playbook: banner.yml
-- import_playbook: pkg_integrity.yml
-- import_playbook: process_accounting.yml
-- import_playbook: aide.yml
-
 # Retirés pour RPi :
 # - import_playbook: anti-malware.yml      → ClamAV trop lourd
 # - import_playbook: postfix_banner.yml    → Postfix absent sur RPi OS
