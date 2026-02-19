@@ -11,7 +11,11 @@
         fail_msg: "Ce playbook est prévu pour Debian/Ubuntu uniquement"
 
 - import_playbook: hostname.yml
-- import_playbook: updates.yml
 - import_playbook: user.yml
-- import_playbook: fail2ban.yml
 - import_playbook: ufw.yml
+- import_playbook: ssh_hardening.yml
+- import_playbook: fail2ban.yml
+- import_playbook: sysctl_hardening.yml
+- import_playbook: auditd.yml
+- import_playbook: pam_hardening.yml
+- import_playbook: anti-malware.yml
